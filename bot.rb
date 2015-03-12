@@ -1,7 +1,8 @@
 require "slack"
 
-BOT_NAME = 'FoosBot'
+BOT_NAME = 'foosbotcoordinator'
 BOT_CHANNEL  = 'foosbot'
+BOT_EMOJI = ':soccer:'
 
 Slack.configure do |config|
   config.token = File.read("key").strip
@@ -11,9 +12,10 @@ end
 class Bot
   attr_accessor :channel, :username, :ids
 
-  def initialize username, channel
+  def initialize username, channel, emoji
     @channel = convert_channel_to_id channel
     @username = username
+    @emoji = emoji
     @oldest_message = nil
 
     @ids = {}
@@ -23,7 +25,7 @@ class Bot
   end
 
   def send_message text
-    response = Slack.chat_postMessage(username: @username, channel: @channel, text: text)
+    response = Slack.chat_postMessage(username: @username, channel: @channel, text: text, icon_emoji: @emoji)
     puts "Sent: #{text}"
     @oldest_message = response['ts']
   end
@@ -42,6 +44,12 @@ class Bot
     return messages
   end
 
+  def set_topic text
+    puts "Set the topic to #{text}"
+    puts Slack.channels_setTopic(channel: @channel, topic: text)
+  end
+
+  private
 
   def get_username id
     refresh_ids if @ids[id].nil?
@@ -110,7 +118,7 @@ class MessageHandler
   # states = [:idle, :searching, :playing]
 
   def initialize bot
-    @keywords = ['foos', 'in', 'out', 'report', 'abandon']
+    @keywords = ['foos', 'in', 'out', 'report', 'abandon', 'stats']
     @bot = bot
     @game = nil
     @state = :idle
@@ -177,12 +185,16 @@ class MessageHandler
       @state = :idle
     end
   end
+
+  def stats m
+    @bot.send_message("There are no stats yet silly!")
+  end
 end
 
 
 # pid loop cuz thug life
 
-bot = Bot.new(BOT_NAME, BOT_CHANNEL)
+bot = Bot.new(BOT_NAME, BOT_CHANNEL, BOT_EMOJI)
 mh = MessageHandler.new(bot)
 while true
   new_messages = bot.get_new_messages
