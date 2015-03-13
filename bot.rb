@@ -145,7 +145,7 @@ class MessageHandler
   # states = [:idle, :searching, :playing]
 
   def initialize bot
-    @keywords = ['foos', 'in', 'out', 'report', 'abandon', 'stats', 'help']
+    @keywords = ['foos', 'in', 'out', 'report', 'abandon', 'stats', 'help', 'ping']
     @bot = bot
     @game = nil
     @state = :idle
@@ -241,6 +241,10 @@ class MessageHandler
     else
       @bot.send_message("Top 10 Players:\n\t#{Player.standings[0..9].join("\n\t")}")
     end
+  end
+
+  def ping m, p
+    @bot.send_message("Pong!")
   end
 
   def help m, p
