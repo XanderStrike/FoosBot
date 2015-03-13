@@ -10,35 +10,29 @@ Slack.configure do |config|
   config.token = File.read("key").strip
 end
 
-# ActiveRecord::Base.establish_connection(
-#   adapter: 'sqlite3'
-#   database: 'db/database.sqlite3'
-# )
+ActiveRecord::Base.establish_connection(
+  adapter: 'sqlite3',
+  database: 'db/database.sqlite3'
+)
 
-class Game
-  attr_accessor :players, :victors
-
-  def initialize player
-    @players = [player]
-    @victors = []
-  end
+class Game < ActiveRecord::Base
+  has_many :participates
+  has_many :players, through: :participates
 
   def remain
-    4 - @players.count
-  end
-
-  def save
-    return true
+    4 - players.count
   end
 end
 
-# class Player << ActiveRecord::Base
+class Player < ActiveRecord::Base
+  has_many :participates
+  has_many :games, through: :participates
+end
 
-# end
-
-# class PlayedIn << ActiveRecord::Base
-
-# end
+class Participate < ActiveRecord::Base
+  belongs_to :game
+  belongs_to :player
+end
 
 class Bot
   attr_accessor :channel, :username, :ids
@@ -140,7 +134,8 @@ class MessageHandler
   def handle message
     @keywords.each do |k|
       if message.text.start_with?("!#{k}")
-        self.send(k, message)
+        player = Player.find_or_create_by(slack_id: message.id, username: message.user)
+        self.send(k, message, player)
         return
       end
     end
@@ -152,63 +147,74 @@ class MessageHandler
     @bot.send_message("There is already a game in progress! Check if the table is clear and `!abandon` if it is!")
   end
 
-  def foos m
+  def abandon_game
+    @bot.send_message("Game abandoned! :worried:")
+    @bot.send_message("Type `!foos` to start a game!")
+    @game.destroy
+    @game = nil
+    @state = :idle
+  end
+
+  def foos m, p
     if @state == :searching
-      @game.players << m.user # unless @game.players.include?(m.user) TODO
-      if @game.remain == 0
+      @game.players << p # unless @game.players.include?(m.user) TODO
+      if @game.remain <= 0
         @bot.send_message("To the table! Type `!report <victor 1> <victor 2>` to report your results, or `!abandon` to kill the game!")
         @state = :playing
         return
       end
-      @bot.send_message("@#{m.user} is in! #{@game.remain} more to go!")
+      @bot.send_message("#{m.user} is in! #{@game.remain} more to go!")
     elsif @state == :idle
-      @bot.send_message("@#{m.user} would like to start a game! Type `!in` to join, or `!out` to leave.")
-      @game = Game.new(m.user)
+      @bot.send_message("#{m.user} would like to start a game! Type `!in` to join, or `!out` to leave.")
+      @game = Game.create(players: [p])
       @state = :searching
     else
       in_progress
     end
   end
 
-  def in m
-    foos m
+  def in m, p
+    foos m, p
   end
 
-  def out m
+  def out m, p
     if @state == :searching
-      @game.players.delete(m.user)
-      if @game.remain == 4
-        @bot.send_message("Game abandoned! Type `!foos` to start a new game!")
-        @state = :idle
-        return
+      @game.players.delete(p)
+      if @game.remain >= 4
+        abandon_game
       end
-      @bot.send_message("@#{m.user} is out! #{@game.remain} more to go!")
+      @bot.send_message("#{m.user} is out! #{@game.remain} more to go!")
+    elsif @state == :playing
+      @bot.send_message("You can't leave a game in progress! You can `!abandon` the game if you must.")
     end
   end
 
-  def report m
+  def report m, p
     if @state == :playing
-      @game.victors = m.text.split(' ')[1,2].map { |n| n.gsub('@','') }
-      @bot.send_message("Congratulations to #{@game.victors.join(' and ')}! Type `!foos` to start a new game!")
+      victors = m.text.split(' ')[1,2].map { |n| n.gsub('@','') }
+      @bot.send_message("Congratulations to #{victors.join(' and ')}! Type `!foos` to start a new game!")
+      players = Player.where(username: victors).map(&:id)
+      @game.participates.where(player_id: players).each {|p| p.update_attributes(win: true) }
       @game.save
       @state = :idle
     end
   end
 
-  def abandon m
+  def abandon m, p
     if [:playing, :searching].include?(@state)
-      @bot.send_message("Game abandoned! :worried:")
-      @bot.send_message("Type `!foos` to start a game!")
-      @game = nil
-      @state = :idle
+      abandon_game
     end
   end
 
-  def stats m
-    @bot.send_message("There are no stats yet silly!")
+  def stats m, p
+    wins = Participate.where(win: true).group(:username).joins(:player).count
+    str = wins.map do |k,v|
+      "    #{k} - #{v}"
+    end
+    @bot.send_message("Wins per user:\n#{str.join("\n")}")
   end
 
-  def help m
+  def help m, p
     str = <<-TEXT
     Commands:
       `!foos` Start a game of foos
@@ -223,7 +229,6 @@ class MessageHandler
     @bot.send_message(str)
   end
 end
-
 
 # pid loop cuz thug life
 
