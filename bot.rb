@@ -43,7 +43,7 @@ class Player < ActiveRecord::Base
 
   def win_percentage
     return 0.0 if games.count == 0
-    100.0 * (wins / games.count)
+    100.0 * (wins.to_f / games.count.to_f)
   end
 
   def self.standings
@@ -69,8 +69,6 @@ class Bot
 
     @ids = {}
     refresh_ids
-
-    send_message('Initialized!')
   end
 
   def send_message text
@@ -150,7 +148,6 @@ class MessageHandler
     @bot = bot
     @game = nil
     @state = :idle
-    @bot.send_message("Type `!foos` to start a game!")
   end
 
   def handle message
@@ -179,13 +176,20 @@ class MessageHandler
 
   def foos m, p
     if @state == :searching
-      @game.players << p unless @game.players.include?(p)
+      if m.text.split(' ').count > 1
+        player = Player.find_by(username: m.text.split(' ').last) # TODO allow create here
+      else
+        player = p
+      end
+
+      @game.players << player unless @game.players.include?(player)
+
       if @game.remain <= 0
         @bot.send_message("To the table! Type `!report <victor 1> <victor 2>` to report your results, or `!abandon` to kill the game!")
         @state = :playing
         return
       end
-      @bot.send_message("#{m.user} is in! #{@game.remain} more to go!")
+      @bot.send_message("#{player.username} is in! #{@game.remain} more to go!")
     elsif @state == :idle
       @bot.send_message("#{m.user} would like to start a game! Type `!in` to join, or `!out` to leave.")
       @game = Game.create(players: [p])
@@ -201,11 +205,16 @@ class MessageHandler
 
   def out m, p
     if @state == :searching
-      @game.players.delete(p)
+      if m.text.split(' ').count > 1
+        player = Player.find_by(username: m.text.split(' ').last) # TODO allow create here
+      else
+        player = p
+      end
+      @game.players.delete(player)
       if @game.remain >= 4
         abandon_game
       end
-      @bot.send_message("#{m.user} is out! #{@game.remain} more to go!")
+      @bot.send_message("#{player.username} is out! #{@game.remain} more to go!")
     elsif @state == :playing
       @bot.send_message("You can't leave a game in progress! You can `!abandon` the game if you must.")
     end
@@ -253,6 +262,7 @@ class MessageHandler
     Commands:
       `!foos` Start a game of foos
       `!in` Join a game
+      `!in <username>` Add a user to a game
       `!out` Leave a game (before it's started)
       `!report <username> <username>` Report the victors
       `!abandon` Kill an in-progress game
