@@ -157,7 +157,7 @@ class MessageHandler
 
   def foos m, p
     if @state == :searching
-      @game.players << p # unless @game.players.include?(m.user) TODO
+      @game.players << p unless @game.players.include?(p)
       if @game.remain <= 0
         @bot.send_message("To the table! Type `!report <victor 1> <victor 2>` to report your results, or `!abandon` to kill the game!")
         @state = :playing
