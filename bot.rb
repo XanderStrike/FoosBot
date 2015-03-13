@@ -148,6 +148,7 @@ class MessageHandler
     @bot = bot
     @game = nil
     @state = :idle
+    @bot.send_message("Initialized! Type `!foos` to start a game!")
   end
 
   def handle message
