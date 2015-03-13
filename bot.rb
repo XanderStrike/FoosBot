@@ -47,7 +47,7 @@ class Player < ActiveRecord::Base
   end
 
   def self.standings
-    Player.all.sort_by { |player| player.win_percentage }.reverse.map(&:stats)
+    Player.all.sort_by { |player| [player.win_percentage, player.games.count] }.reverse.map(&:stats)
   end
 end
 
