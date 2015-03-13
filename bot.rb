@@ -2,10 +2,13 @@ require 'slack'
 require 'active_record'
 require 'sqlite3'
 
+# Settings
 BOT_NAME = 'FoosBot'
-BOT_CHANNEL  = 'foosbot'
+BOT_CHANNEL  = 'foosball_coordination'
 BOT_EMOJI = ':soccer:'
 
+
+# Configuration
 Slack.configure do |config|
   config.token = File.read("key").strip
 end
@@ -15,6 +18,8 @@ ActiveRecord::Base.establish_connection(
   database: 'db/database.sqlite3'
 )
 
+
+# Database Models
 class Game < ActiveRecord::Base
   has_many :participates
   has_many :players, through: :participates
@@ -34,6 +39,8 @@ class Participate < ActiveRecord::Base
   belongs_to :player
 end
 
+
+# Classes
 class Bot
   attr_accessor :channel, :username, :ids
 
@@ -95,7 +102,6 @@ class Bot
   end
 end
 
-
 class Message
   attr_accessor :user, :text, :id
 
@@ -118,7 +124,6 @@ class Message
     nil
   end
 end
-
 
 class MessageHandler
   # states = [:idle, :searching, :playing]
@@ -230,14 +235,18 @@ class MessageHandler
   end
 end
 
-# pid loop cuz thug life
 
+# PID Loop Because Thug Life
 bot = Bot.new(BOT_NAME, BOT_CHANNEL, BOT_EMOJI)
 mh = MessageHandler.new(bot)
 while true
-  new_messages = bot.get_new_messages
-  new_messages.each do |m|
-    mh.handle(m)
+  begin
+    new_messages = bot.get_new_messages
+    new_messages.each do |m|
+      mh.handle(m)
+    end
+  rescue
+    puts "Error: Something went wrong"
   end
   sleep(1)
 end

@@ -1,3 +1,5 @@
+source 'https://rubygems.org'
+
 gem 'slack-api'
-gem 'active_record'
+gem 'activerecord'
 gem 'sqlite3'
