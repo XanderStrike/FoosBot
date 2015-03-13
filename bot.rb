@@ -42,6 +42,7 @@ class Player < ActiveRecord::Base
   end
 
   def win_percentage
+    return 0.0 if games.count == 0
     100.0 * (wins / games.count)
   end
 
@@ -256,7 +257,7 @@ class MessageHandler
       `!report <username> <username>` Report the victors
       `!abandon` Kill an in-progress game
       `!stats` See the top players
-      `!stats <username|me>` See a player's stats
+      `!stats <username|me>` See a player's! stats
       `!help` Show this help text
     TEXT
     @bot.send_message(str)
@@ -276,5 +277,5 @@ while true
   rescue => e
     puts "Error: #{e}"
   end
-  sleep(1)
+  sleep(0.5)
 end
