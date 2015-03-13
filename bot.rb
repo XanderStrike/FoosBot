@@ -4,7 +4,7 @@ require 'sqlite3'
 
 # Settings
 BOT_NAME = 'FoosBot'
-BOT_CHANNEL  = 'foosball_coordination'
+BOT_CHANNEL  = 'foosbot'
 BOT_EMOJI = ':soccer:'
 
 
@@ -32,6 +32,22 @@ end
 class Player < ActiveRecord::Base
   has_many :participates
   has_many :games, through: :participates
+
+  def stats
+    "#{username}: #{wins}/#{games.count} (#{win_percentage}%)"
+  end
+
+  def wins
+    participates.where(win: true).count
+  end
+
+  def win_percentage
+    100.0 * (wins / games.count)
+  end
+
+  def self.standings
+    Player.all.sort_by { |player| player.win_percentage }.reverse.map(&:stats)
+  end
 end
 
 class Participate < ActiveRecord::Base
@@ -212,11 +228,19 @@ class MessageHandler
   end
 
   def stats m, p
-    wins = Participate.where(win: true).group(:username).joins(:player).count
-    str = wins.map do |k,v|
-      "    #{k} - #{v}"
+    args = m.text.split(' ')[1..99]
+    if args.count > 0
+      output = args.map do |a|
+        if a == 'me'
+          p.stats
+        else
+          Player.find_by(username: a).stats
+        end
+      end
+      @bot.send_message(output.join("\n"))
+    else
+      @bot.send_message("Top 10 Players:\n\t#{Player.standings[0..9].join("\n\t")}")
     end
-    @bot.send_message("Wins per user:\n#{str.join("\n")}")
   end
 
   def help m, p
@@ -225,10 +249,10 @@ class MessageHandler
       `!foos` Start a game of foos
       `!in` Join a game
       `!out` Leave a game (before it's started)
-      `!report <victor 1> <victor 2>` Report the victors
+      `!report <username> <username>` Report the victors
       `!abandon` Kill an in-progress game
       `!stats` See the top players
-      `!stats <name>` See a player's stats
+      `!stats <username|me>` See a player's stats
       `!help` Show this help text
     TEXT
     @bot.send_message(str)
@@ -245,8 +269,8 @@ while true
     new_messages.each do |m|
       mh.handle(m)
     end
-  rescue
-    puts "Error: Something went wrong"
+  rescue => e
+    puts "Error: #{e}"
   end
   sleep(1)
 end
