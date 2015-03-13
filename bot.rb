@@ -1,6 +1,8 @@
-require "slack"
+require 'slack'
+require 'active_record'
+require 'sqlite3'
 
-BOT_NAME = 'foosbotcoordinator'
+BOT_NAME = 'FoosBot'
 BOT_CHANNEL  = 'foosbot'
 BOT_EMOJI = ':soccer:'
 
@@ -8,6 +10,35 @@ Slack.configure do |config|
   config.token = File.read("key").strip
 end
 
+# ActiveRecord::Base.establish_connection(
+#   adapter: 'sqlite3'
+#   database: 'db/database.sqlite3'
+# )
+
+class Game
+  attr_accessor :players, :victors
+
+  def initialize player
+    @players = [player]
+    @victors = []
+  end
+
+  def remain
+    4 - @players.count
+  end
+
+  def save
+    return true
+  end
+end
+
+# class Player << ActiveRecord::Base
+
+# end
+
+# class PlayedIn << ActiveRecord::Base
+
+# end
 
 class Bot
   attr_accessor :channel, :username, :ids
@@ -95,30 +126,11 @@ class Message
 end
 
 
-class Game
-  attr_accessor :players, :victors
-
-  def initialize player
-    @players = [player]
-    @victors = []
-  end
-
-  def remain
-    4 - @players.count
-  end
-
-  def save
-    return true
-  end
-end
-
-
 class MessageHandler
-
   # states = [:idle, :searching, :playing]
 
   def initialize bot
-    @keywords = ['foos', 'in', 'out', 'report', 'abandon', 'stats']
+    @keywords = ['foos', 'in', 'out', 'report', 'abandon', 'stats', 'help']
     @bot = bot
     @game = nil
     @state = :idle
@@ -136,24 +148,30 @@ class MessageHandler
 
   private
 
-  def foos m
-    if @state == :idle
-      @bot.send_message("@#{m.user} would like to start a game! Type `!in` to join, or `!out` to leave.")
-      @game = Game.new(m.user)
-      @state = :searching
-    end
+  def in_progress
+    @bot.send_message("There is already a game in progress! Check if the table is clear and `!abandon` if it is!")
   end
 
-  def in m
+  def foos m
     if @state == :searching
-      @game.players << m.user# unless @game.players.include?(m.user)
+      @game.players << m.user # unless @game.players.include?(m.user) TODO
       if @game.remain == 0
         @bot.send_message("To the table! Type `!report <victor 1> <victor 2>` to report your results, or `!abandon` to kill the game!")
         @state = :playing
         return
       end
       @bot.send_message("@#{m.user} is in! #{@game.remain} more to go!")
+    elsif @state == :idle
+      @bot.send_message("@#{m.user} would like to start a game! Type `!in` to join, or `!out` to leave.")
+      @game = Game.new(m.user)
+      @state = :searching
+    else
+      in_progress
     end
+  end
+
+  def in m
+    foos m
   end
 
   def out m
@@ -188,6 +206,21 @@ class MessageHandler
 
   def stats m
     @bot.send_message("There are no stats yet silly!")
+  end
+
+  def help m
+    str = <<-TEXT
+    Commands:
+      `!foos` Start a game of foos
+      `!in` Join a game
+      `!out` Leave a game (before it's started)
+      `!report <victor 1> <victor 2>` Report the victors
+      `!abandon` Kill an in-progress game
+      `!stats` See the top players
+      `!stats <name>` See a player's stats
+      `!help` Show this help text
+    TEXT
+    @bot.send_message(str)
   end
 end
 
